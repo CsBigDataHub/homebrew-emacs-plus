@@ -178,6 +178,25 @@ class EmacsPlusAT30 < EmacsBase
     args << "--without-pop" if build.with? "mailutils"
     args << "--with-xwidgets" if build.with? "xwidgets"
 
+    if build.with? "xwidgets"
+      cfg = "configure.ac"
+      if File.exist?(cfg)
+        content = File.read(cfg)
+        # Replace exactly one existing WEBKIT_CFLAGS line with a three-line
+        # block that uses the SDK path. Only the first matching line will be
+        # replaced to avoid touching other lines.
+        lines = content.lines
+        idx = lines.index { |l| l.match(/^[\s]*WEBKIT_CFLAGS=.*WebKit.framework\/Headers.*$/) }
+        unless idx.nil?
+          lines[idx] = "SDKROOT=$(xcrun --show-sdk-path)\n" \
+                       "WEBKIT_CFLAGS=\"-I${SDKROOT}/System/Library/Frameworks/WebKit.framework/Headers\"\n" \
+                       "# WEBKIT_CFLAGS=\"-I/System/Library/Frameworks/WebKit.framework/Headers\"\n"
+          File.write(cfg, lines.join)
+          ohai "Patched configure.ac to use SDKROOT for WEBKIT_CFLAGS"
+        end
+      end
+    end
+
     system "./autogen.sh"
 
     # Apply custom patches from build.yml
